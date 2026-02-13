@@ -86,6 +86,8 @@ func codenameFromSKU(sku: SKU) -> Codenames {
         return .ESPEON
     case .FLAFFY_WHITE:
         return .FLAFFY
+    case .EAR_3_1, .EAR_3_2, .EAR_3_3, .EAR_3_4, .EAR_3_5, .EAR_3_6, .EAR_3_7:
+        return .EAR_3
     default:
         return .UNKNOWN
     }
@@ -124,7 +126,7 @@ func skuFromSerial(serial: String) -> SKU {
             return SKU.FLAFFY_WHITE
         }
     } else if headSerial == "SH" || headSerial == "13" {
-        return SKU(rawValue: String(serial.prefix(6).suffix(2)))! // Get characters at index 4 and 5
+        return SKU(rawValue: String(serial.prefix(6).suffix(2))) ?? .UNKNOWN // Get characters at index 4 and 5
     }
     
     return SKU.UNKNOWN

@@ -48,8 +48,10 @@ struct ConnectView: View {
                 }
                 
                 VStack {
-                    // Ear 1 Image
-                    Image("ear_1")
+                    // Device Image
+                    Image(mainViewModel.nothingDevice?.codename == .EAR_3 ? "ear_3" : "ear_1")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
                         .overlay(
                             LinearGradient(gradient: Gradient(colors: [Color.black.opacity(0.0), Color.black.opacity(0.8)]), startPoint: .top, endPoint: .bottom)
                                 .blendMode(.darken) // Blend mode to darken the image

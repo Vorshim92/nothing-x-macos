@@ -105,6 +105,7 @@ class MainViewViewModel : ObservableObject {
             if (devices.isEmpty) {
                 navigationPath.append(Destination.discover)
             } else {
+                nothingDevice = devices[0]
                 navigationPath.append(Destination.connect)
             }
         }

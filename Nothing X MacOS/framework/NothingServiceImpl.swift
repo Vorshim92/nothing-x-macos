@@ -657,7 +657,7 @@ class NothingServiceImpl : NothingService {
         var byteArray: [UInt8] = [0x00] // Initialize the byte array with a single element
 
         // Assuming modelBase is a global variable or passed as a parameter
-        let modelBase = Codenames.ONE // Replace this with the actual modelBase value as needed
+        let modelBase = nothingDevice?.codename ?? Codenames.UNKNOWN
 
         if modelBase == Codenames.ONE {
             // Set the first byte based on the isRing parameter
@@ -719,12 +719,12 @@ class NothingServiceImpl : NothingService {
             }
             
         case Commands.READ_SERIAL_NUMBER.rawValue:
-            
+
             let serial = readSerial(hexPayload: rawData)
             if (!serial.isEmpty) {
                 nothingDevice?.serial = serial
                 nothingDevice?.sku = skuFromSerial(serial: serial)
-        
+                nothingDevice?.codename = codenameFromSKU(sku: nothingDevice?.sku ?? .UNKNOWN)
             }
             
         case Commands.READ_ANC_ONE.rawValue:
