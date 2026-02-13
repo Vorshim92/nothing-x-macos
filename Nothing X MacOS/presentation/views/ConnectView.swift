@@ -113,6 +113,14 @@ struct ConnectView: View {
             
         }
         
+        .onAppear {
+            viewModel.checkBluetoothStatus()
+            if viewModel.isBluetoothOn {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    viewModel.connect()
+                }
+            }
+        }
         .padding(.bottom, 0)
         .background(.black)
         .frame(width: 250,height: 230)

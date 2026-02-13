@@ -6,18 +6,34 @@
 //
 
 import SwiftUI
+import AppKit
+import MenuBarExtraAccess
 
+class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+    private var hasAutoOpened = false
+
+    func autoOpenStatusItem(_ statusItem: NSStatusItem) {
+        guard !hasAutoOpened else { return }
+        hasAutoOpened = true
+        // Delay ensures MenuBarExtraAccess window observers are registered
+        // (they're set up in parallel async Tasks)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            statusItem.button?.performClick(nil)
+        }
+    }
+}
 
 @main
 struct Nothing_X_MacOSApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var isMenuPresented = false
     @StateObject private var store = Store()
     @StateObject private var viewModel = MainViewViewModel(bluetoothService: BluetoothServiceImpl(), nothingRepository: NothingRepositoryImpl.shared, nothingService: NothingServiceImpl.shared)
     @StateObject private var budsPickerViewModel = BudsPickerComponentViewModel()
-
     var body: some Scene {
         MenuBarExtra {
             NavigationStack(path: $viewModel.navigationPath.animation(.default)) {
-                
+
                 HomeView()
                     .navigationDestination(for: Destination.self) { destination in
                         switch(destination) {
@@ -38,21 +54,21 @@ struct Nothing_X_MacOSApp: App {
                                 .transition(.asymmetric(insertion: .opacity, removal: .opacity))
                         case .discover_started: DiscoverStartedView()
                         case .bluetooth_off: BluetoothIsOffView()
-                            
+
                         }
-                        
-                        
+
+
                     }
-                    
+
             }
             .environmentObject(store)
             .environmentObject(viewModel)
             .environmentObject(budsPickerViewModel)
             .frame(width: 250, height: 230)
-        
-            
+
+
         } label: {
-            
+
             if (viewModel.rightBattery != nil && viewModel.rightBattery != nil) {
                 Label("\(Double((viewModel.leftBattery ?? 0.0) + (viewModel.rightBattery ?? 0.0)) / 2.0, specifier: "%.0f")%", image: "nothing.ear.1")
                     .labelStyle(.titleAndIcon)
@@ -63,6 +79,9 @@ struct Nothing_X_MacOSApp: App {
 
         }
         .menuBarExtraStyle(.window)
-        
+        .menuBarExtraAccess(isPresented: $isMenuPresented, statusItem: { item in
+            appDelegate.autoOpenStatusItem(item)
+        })
+
     }
 }

@@ -22,9 +22,10 @@ class BluetoothManager: NSObject, IOBluetoothDeviceInquiryDelegate, IOBluetoothR
     private var centralManager: CBCentralManager!
     private var deviceClass: UInt32? = nil
     private var bluetoothState: BluetoothStates = .OFF
-    
+    private var isConnecting = false
 
-    
+
+
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
@@ -116,61 +117,68 @@ class BluetoothManager: NSObject, IOBluetoothDeviceInquiryDelegate, IOBluetoothR
     
     
     func connectToDevice(address: String, channelID: UInt8) {
-        
-        
+
+        guard !isConnecting else {
+            print("connectToDevice skipped - connection already in progress")
+            return
+        }
+        isConnecting = true
+
         stopDeviceInquiry()
-        
+
         DispatchQueue.global(qos: .userInitiated).async {
                 // Check if the device is already connected
                 print("Connecting to device \(address)")
                 if !(self.device?.isConnected() ?? false) {
                     self.device = IOBluetoothDevice(addressString: address)
-                    
+
                     // Open a connection to the device
                     let resultConnection = self.device?.openConnection()
                     if resultConnection == kIOReturnSuccess {
                         print("Connected to device")
                         let bluetoothDevice = BluetoothDeviceEntity(name: self.device!.name, mac: address, channelId: channelID, isPaired: true, isConnected: true)
-                        
+
                         // Notify on the main thread
                         DispatchQueue.main.async {
                             NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.CONNECTED.rawValue), object: bluetoothDevice)
-                            
+
                         }
                     } else {
                         print("Failed to connect to device")
+                        self.isConnecting = false
                         DispatchQueue.main.async {
                             self.device = nil
                             NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.FAILED_TO_CONNECT.rawValue), object: nil)
-                            
+
                         }
                         return
                     }
-                    
+
+                    // Wait for CBClassicManager to fully power on after connection
+                    Thread.sleep(forTimeInterval: 1.5)
+
                     // Open an RFCOMM channel to the device
-                    
                     let resultRFCOMM = self.device?.openRFCOMMChannelAsync(&self.channel, withChannelID: channelID, delegate: self)
-                    
+
                     if resultRFCOMM == kIOReturnSuccess {
-                        print("Opened RFCOMM channel")
-                        DispatchQueue.main.async {
-                            NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.OPENED_RFCOMM_CHANNEL.rawValue), object: nil)
-                        }
+                        print("RFCOMM channel open initiated, waiting for delegate callback...")
                     } else {
                         print("Failed to open RFCOMM channel")
+                        self.isConnecting = false
                         self.device = nil
                         DispatchQueue.main.async {
                             NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.FAILED_RFCOMM_CHANNEL.rawValue), object: nil)
                         }
                     }
                 } else {
+                    self.isConnecting = false
                     DispatchQueue.main.async {
                         NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.OPENED_RFCOMM_CHANNEL.rawValue), object: nil)
-                        
+
                     }
                 }
             }
-        
+
     }
     
     func send(data: UnsafeMutableRawPointer!, length: UInt16) {
@@ -192,12 +200,31 @@ class BluetoothManager: NSObject, IOBluetoothDeviceInquiryDelegate, IOBluetoothR
     
     func rfcommChannelClosed(_ channel: IOBluetoothRFCOMMChannel) {
         print("RFCOMM channel closed.")
+        self.isConnecting = false
         self.device = nil
         self.channel = nil
         NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.CLOSED_RFCOMM_CHANNEL.rawValue), object: nil)
     }
 
+    func rfcommChannelOpenComplete(_ rfcommChannel: IOBluetoothRFCOMMChannel!, status error: IOReturn) {
+        self.isConnecting = false
+        if error == kIOReturnSuccess {
+            print("RFCOMM channel open complete (delegate) - channel ready")
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.OPENED_RFCOMM_CHANNEL.rawValue), object: nil)
+            }
+        } else {
+            print("RFCOMM channel open failed in delegate, error: \(error)")
+            self.device = nil
+            self.channel = nil
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: Notification.Name(BluetoothNotifications.FAILED_RFCOMM_CHANNEL.rawValue), object: nil)
+            }
+        }
+    }
+
     func disconnectDevice() {
+        self.isConnecting = false
         if let channel = self.channel {
             channel.close() // This should trigger rfcommChannelClosed delegate method
             self.channel = nil // Ensure it's set to nil immediately

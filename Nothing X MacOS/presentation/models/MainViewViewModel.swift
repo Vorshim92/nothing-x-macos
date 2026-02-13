@@ -12,13 +12,15 @@ class MainViewViewModel : ObservableObject {
     
     
     private let bluetoothService: BluetoothService
-    
+    private let nothingService: NothingService
+
     private let fetchDataUseCase: FetchDataUseCaseProtocol
     private let disconnectDeviceUseCase: DisconnectDeviceUseCaseProtocol
     private let getSavedDevicesUseCase: GetSavedDevicesUseCaseProtocol
     
     private let jsonEncoder: JsonEncoder = JsonEncoder.shared
     private let nothingRepository: NothingRepository
+    private var hasNavigatedToHome = false
     
     @Published var rightBattery: Double? = nil
     @Published var leftBattery: Double? = nil
@@ -39,6 +41,7 @@ class MainViewViewModel : ObservableObject {
         
         self.bluetoothService = bluetoothService
         self.nothingRepository = nothingRepository
+        self.nothingService = nothingService
         self.fetchDataUseCase = FetchDataUseCase(service: nothingService)
         self.disconnectDeviceUseCase = DisconnectDeviceUseCase(nothingService: nothingService)
         self.getSavedDevicesUseCase = GetSavedDevicesUseCase(nothingRepository: nothingRepository)
@@ -48,7 +51,8 @@ class MainViewViewModel : ObservableObject {
                         
             self.leftBattery = nil
             self.rightBattery = nil
-            
+            self.hasNavigatedToHome = false
+
             withAnimation {
                 if self.getSavedDevicesUseCase.getSaved().isEmpty {
                     self.navigationPath.append(Destination.discover)
@@ -61,9 +65,8 @@ class MainViewViewModel : ObservableObject {
         
         NotificationCenter.default.addObserver(forName: Notification.Name(BluetoothNotifications.OPENED_RFCOMM_CHANNEL.rawValue), object: nil, queue: .main) {
             notification in
-            
+
             self.fetchDataUseCase.fetchData()
-            self.navigationPath.append(Destination.home)
         }
         
         
@@ -95,14 +98,21 @@ class MainViewViewModel : ObservableObject {
                 
                 self.rightBattery = Double(device.rightBattery)
                 self.leftBattery = Double(device.leftBattery)
+
+                if !self.hasNavigatedToHome {
+                    self.hasNavigatedToHome = true
+                    withAnimation {
+                        self.navigationPath.append(Destination.home)
+                    }
+                }
             }
         }
         
     
         // Check Bluetooth status and set the destination accordingly
-        if !bluetoothService.isBluetoothOn() || !bluetoothService.isDeviceConnected() {
+        if !bluetoothService.isDeviceConnected() {
             let devices = nothingRepository.getSaved()
-            if (devices.isEmpty) {
+            if devices.isEmpty {
                 navigationPath.append(Destination.discover)
             } else {
                 nothingDevice = devices[0]
